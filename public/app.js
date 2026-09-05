@@ -18,7 +18,7 @@ function setVisible(id, visible) { $(id).classList.toggle('hidden', !visible); }
 function setMessage(text, error = false) { $('actionMessage').textContent = text; $('actionMessage').className = error ? 'message error' : 'message'; }
 function formatPower(values) { const value = values?.find((item) => item.measurand === 'Power.Active.Import')?.value; return value ? `${Number(value).toFixed(0)} W` : '—'; }
 function formatCurrent(values) { const value = values?.find((item) => item.measurand === 'Current.Offered')?.value; return value ? `${value} A` : '—'; }
-function formatEnergy(values) { const value = values?.find((item) => item.measurand === 'Energy.Active.Import.Register')?.value; return value ? `${(Number(value) / 1000).toFixed(2)} kWh` : '—'; }
+function formatSessionEnergy(energyWh) { return Number.isFinite(Number(energyWh)) ? `${(Number(energyWh) / 1000).toFixed(2)} kWh` : '0.00 kWh'; }
 
 async function api(path, options = {}) {
   const user = auth.currentUser;
@@ -40,7 +40,7 @@ async function refresh() {
     $('lastSeen').textContent = point.lastSeenAt ? `Ultimo dato: ${new Date(point.lastSeenAt).toLocaleString('it-IT')}` : '—';
     $('power').textContent = formatPower(point.meterValues?.at(-1)?.sampledValue);
     $('current').textContent = formatCurrent(point.meterValues?.at(-1)?.sampledValue);
-    $('energy').textContent = formatEnergy(point.meterValues?.at(-1)?.sampledValue);
+    $('sessionEnergy').textContent = formatSessionEnergy(point.sessionEnergyWh);
     if (point.manualMode?.currentLimitA) { $('amps').value = point.manualMode.currentLimitA; $('ampsValue').textContent = point.manualMode.currentLimitA; $('modeBadge').textContent = 'Manuale'; }
   } catch (error) { setMessage(error.message, true); }
 }

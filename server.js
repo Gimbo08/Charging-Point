@@ -300,11 +300,17 @@ wss.on('connection', (ws) => {
         break;
       case 'MeterValues':
         point.meterValues = payload?.meterValue || [];
+        const latestEnergyWh = Number(point.meterValues.at(-1)?.sampledValue?.find((item) => item.measurand === 'Energy.Active.Import.Register')?.value);
+        if (Number.isFinite(latestEnergyWh) && Number.isFinite(point.sessionStartEnergyWh)) {
+          point.sessionEnergyWh = Math.max(0, latestEnergyWh - point.sessionStartEnergyWh);
+        }
         sendCallResult(ws, uniqueId, {});
         persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
         break;
       case 'StartTransaction':
         point.transactionId = Date.now();
+        point.sessionStartEnergyWh = Number(payload?.meterStart) || null;
+        point.sessionEnergyWh = 0;
         point.status = 'Charging';
         sendCallResult(ws, uniqueId, { transactionId: point.transactionId, idTagInfo: { status: 'Accepted' } });
         persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
@@ -312,6 +318,8 @@ wss.on('connection', (ws) => {
       case 'StopTransaction':
         point.status = 'Available';
         point.transactionId = undefined;
+        point.sessionStartEnergyWh = undefined;
+        point.sessionEnergyWh = undefined;
         sendCallResult(ws, uniqueId, { idTagInfo: { status: 'Accepted' } });
         persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
         break;
