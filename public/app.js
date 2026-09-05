@@ -80,6 +80,20 @@ async function chargingAction(action) {
 }
 $('startButton').addEventListener('click', () => chargingAction('start'));
 $('stopButton').addEventListener('click', () => chargingAction('stop'));
+$('configurationButton').addEventListener('click', async () => {
+  $('configurationButton').disabled = true;
+  setMessage('Lettura configurazione OCPP…');
+  try {
+    const result = await api('/api/ocpp-configuration');
+    $('configurationResult').textContent = JSON.stringify(result.response, null, 2);
+    $('configurationResult').classList.remove('hidden');
+    setMessage('Configurazione OCPP ricevuta.');
+  } catch (error) {
+    setMessage(error.message, true);
+  } finally {
+    $('configurationButton').disabled = false;
+  }
+});
 $('applyButton').addEventListener('click', async () => {
   $('applyButton').disabled = true; setMessage('Invio comando…');
   try {

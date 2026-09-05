@@ -97,6 +97,19 @@ function sendOcppCall(ws, action, payload) {
   });
 }
 
+app.get('/api/ocpp-configuration', requireFirebaseUser, async (_req, res) => {
+  const point = chargePoints.get(configuredChargePointId);
+  if (!point?.ws || point.ws.readyState !== 1) return res.status(409).json({ error: 'Charge point is not connected' });
+  try {
+    const response = await sendOcppCall(point.ws, 'GetConfiguration', {
+      key: ['AuthorizeRemoteTxRequests', 'AuthEnabled', 'LocalAuthListEnabled', 'AllowOfflineTxForUnknownId', 'AuthDisabledIdTag', 'StopTransactionOnEVSideDisconnect'],
+    });
+    return res.json({ ok: true, response });
+  } catch (error) {
+    return res.status(502).json({ error: error.message });
+  }
+});
+
 app.post('/api/manual-mode', requireFirebaseUser, async (req, res) => {
 
   const amps = parseCurrentLimit(req.body?.currentLimitA);
