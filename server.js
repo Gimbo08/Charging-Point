@@ -147,6 +147,12 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
   const point = chargePoints.get(configuredChargePointId);
   if (!point?.ws || point.ws.readyState !== 1) return res.status(409).json({ error: 'Charge point is not connected' });
 
+  if (action === 'stop' && !point.transactionId && firestoreEnabled) {
+    const stored = await db.collection(chargePointCollection).doc(configuredChargePointId).get();
+    const storedTransactionId = stored.exists ? stored.data()?.transactionId : null;
+    if (storedTransactionId !== undefined && storedTransactionId !== null) point.transactionId = storedTransactionId;
+  }
+
   try {
     let response;
     if (action === 'start') {
@@ -155,11 +161,11 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
         idTag: `charging-point-${req.user.uid}`.slice(0, 20),
       });
     } else {
-      if (!point.transactionId) return res.status(409).json({ error: 'No active charging transaction' });
+      if (!point.transactionId) return res.status(409).json({ error: 'Nessuna transazione OCPP attiva: la wallbox non ha fornito un transactionId.' });
       response = await sendOcppCall(point.ws, 'RemoteStopTransaction', { transactionId: point.transactionId });
     }
 
-    const event = { action, response, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
+    const event = { action, response, transactionId: point.transactionId || null, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
     console.log(JSON.stringify({ event: 'charging_action_response', ...event }));
     if (firestoreEnabled) await persistEvent(configuredChargePointId, `Remote${action === 'start' ? 'Start' : 'Stop'}Transaction`, event);
     return res.json({ ok: true, ...event, message: action === 'start' ? 'Comando accettato; attesa conferma dello stato di ricarica.' : 'Comando di arresto accettato; attesa conferma dello stato.' });
