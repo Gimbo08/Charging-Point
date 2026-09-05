@@ -238,6 +238,7 @@ wss.on('connection', (ws) => {
     connectedAt: new Date().toISOString(),
     lastSeenAt: new Date().toISOString(),
     status: 'Connected',
+    ocppConnected: true,
     ws,
   };
   chargePoints.set(id, point);
@@ -331,6 +332,12 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (chargePoints.get(id)?.ws === ws) {
       chargePoints.delete(id);
+    }
+    if (firestoreEnabled) {
+      db.collection(chargePointCollection).doc(id).set({
+        ocppConnected: false,
+        disconnectedAt: FieldValue.serverTimestamp(),
+      }, { merge: true }).catch((error) => console.error('Firestore disconnect write failed:', error.message));
     }
   });
 });

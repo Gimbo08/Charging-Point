@@ -16,6 +16,13 @@ const $ = (id) => document.getElementById(id);
 
 function setVisible(id, visible) { $(id).classList.toggle('hidden', !visible); }
 function setMessage(text, error = false) { $('actionMessage').textContent = text; $('actionMessage').className = error ? 'message error' : 'message'; }
+function setCommandAvailability(connected) {
+  $('applyButton').disabled = !connected;
+  $('startButton').disabled = !connected;
+  $('stopButton').disabled = !connected;
+  $('modeBadge').textContent = connected ? 'OCPP connesso' : 'OCPP non connesso';
+  $('modeBadge').classList.toggle('offline', !connected);
+}
 function formatPower(values) { const value = values?.find((item) => item.measurand === 'Power.Active.Import')?.value; return value ? `${Number(value).toFixed(0)} W` : '—'; }
 function formatCurrent(values) { const value = values?.find((item) => item.measurand === 'Current.Offered')?.value; return value ? `${value} A` : '—'; }
 function formatSessionEnergy(energyWh) { return Number.isFinite(Number(energyWh)) ? `${(Number(energyWh) / 1000).toFixed(2)} kWh` : '0.00 kWh'; }
@@ -34,14 +41,20 @@ async function refresh() {
   try {
     const data = await api('/api/charge-points');
     const point = data[0];
-    if (!point) { $('status').textContent = 'Non connessa'; return; }
-    $('status').textContent = point.status || 'Connessa';
+    if (!point) {
+      $('status').textContent = 'Non connessa';
+      setCommandAvailability(false);
+      return;
+    }
+    const connected = point.ocppConnected === true;
+    setCommandAvailability(connected);
+    $('status').textContent = point.status || (connected ? 'Connessa' : 'Non connessa');
     $('model').textContent = `${point.vendor || ''} ${point.model || ''}`;
     $('lastSeen').textContent = point.lastSeenAt ? `Ultimo dato: ${new Date(point.lastSeenAt).toLocaleString('it-IT')}` : '—';
     $('power').textContent = formatPower(point.meterValues?.at(-1)?.sampledValue);
     $('current').textContent = formatCurrent(point.meterValues?.at(-1)?.sampledValue);
     $('sessionEnergy').textContent = formatSessionEnergy(point.sessionEnergyWh);
-    if (point.manualMode?.currentLimitA) { $('amps').value = point.manualMode.currentLimitA; $('ampsValue').textContent = point.manualMode.currentLimitA; $('modeBadge').textContent = 'Manuale'; }
+    if (point.manualMode?.currentLimitA) { $('amps').value = point.manualMode.currentLimitA; $('ampsValue').textContent = point.manualMode.currentLimitA; }
   } catch (error) { setMessage(error.message, true); }
 }
 
