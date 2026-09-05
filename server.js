@@ -164,13 +164,44 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
         },
       },
     };
-    const response = await sendOcppCall(point.ws, 'SetChargingProfile', profile);
-    const responseStatus = response?.status || 'Unknown';
-    const event = { action, requestedLimitA: limit, response, responseStatus, transactionId: point.transactionId || null, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
+
+    const profileResponse = await sendOcppCall(point.ws, 'SetChargingProfile', profile);
+    const profileStatus = profileResponse?.status || 'Unknown';
+    if (profileStatus !== 'Accepted') {
+      return res.status(409).json({ ok: false, action, responseStatus: profileStatus, message: `La wallbox ha rifiutato il limite di corrente: ${profileStatus}.` });
+    }
+
+    let transactionResponse = null;
+    let transactionStatus = null;
+    if (action === 'start') {
+      transactionResponse = await sendOcppCall(point.ws, 'RemoteStartTransaction', {
+        connectorId: 1,
+        idTag: 'ChargingPoint',
+      });
+      transactionStatus = transactionResponse?.status || 'Unknown';
+    } else if (point.transactionId) {
+      transactionResponse = await sendOcppCall(point.ws, 'RemoteStopTransaction', { transactionId: point.transactionId });
+      transactionStatus = transactionResponse?.status || 'Unknown';
+    }
+
+    const accepted = action === 'start' ? transactionStatus === 'Accepted' : (!transactionStatus || transactionStatus === 'Accepted');
+    const event = {
+      action,
+      requestedLimitA: limit,
+      profileResponse,
+      profileStatus,
+      transactionResponse,
+      transactionStatus,
+      transactionId: point.transactionId || null,
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user.uid,
+    };
     console.log(JSON.stringify({ event: 'charging_action_response', ...event }));
-    if (firestoreEnabled) await persistEvent(configuredChargePointId, 'SetChargingProfile', event);
-    const accepted = responseStatus === 'Accepted';
-    return res.status(accepted ? 200 : 409).json({ ok: accepted, ...event, message: accepted ? (action === 'start' ? `Ricarica richiesta a ${limit} A; attesa conferma dello stato.` : 'Ricarica sospesa a 0 A.') : `La wallbox ha risposto: ${responseStatus}.` });
+    if (firestoreEnabled) await persistEvent(configuredChargePointId, 'ChargingAction', event);
+    const message = accepted
+      ? (action === 'start' ? `Avvio ricarica inviato a ${limit} A.` : 'Stop ricarica inviato.')
+      : `La wallbox ha risposto: ${transactionStatus || profileStatus}.`;
+    return res.status(accepted ? 200 : 409).json({ ok: accepted, ...event, responseStatus: transactionStatus || profileStatus, message });
   } catch (error) {
     return res.status(502).json({ error: error.message });
   }
