@@ -12,6 +12,7 @@ const firebaseConfig = window.CHARGING_POINT_FIREBASE_CONFIG || {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const apiBase = window.CHARGING_POINT_API_BASE || 'https://charging-point-ocpp-485797330874.europe-west8.run.app';
+const connectionTimeoutMs = 120000;
 const $ = (id) => document.getElementById(id);
 
 function setVisible(id, visible) { $(id).classList.toggle('hidden', !visible); }
@@ -46,11 +47,14 @@ async function refresh() {
       setCommandAvailability(false);
       return;
     }
-    const connected = point.ocppConnected === true;
+    const lastSeenMs = point.lastSeenAt ? Date.parse(point.lastSeenAt) : NaN;
+    const recentlySeen = Number.isFinite(lastSeenMs) && (Date.now() - lastSeenMs) <= connectionTimeoutMs;
+    const connected = point.ocppConnected === true && recentlySeen;
     setCommandAvailability(connected);
     $('status').textContent = point.status || (connected ? 'Connessa' : 'Non connessa');
     $('model').textContent = `${point.vendor || ''} ${point.model || ''}`;
     $('lastSeen').textContent = point.lastSeenAt ? `Ultimo dato: ${new Date(point.lastSeenAt).toLocaleString('it-IT')}` : '—';
+    if (!recentlySeen) setMessage('Connessione OCPP non confermata da oltre 120 secondi.', true);
     $('power').textContent = formatPower(point.meterValues?.at(-1)?.sampledValue);
     $('current').textContent = formatCurrent(point.meterValues?.at(-1)?.sampledValue);
     $('sessionEnergy').textContent = formatSessionEnergy(point.sessionEnergyWh);
