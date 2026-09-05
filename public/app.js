@@ -85,6 +85,21 @@ async function chargingAction(action) {
 }
 $('startButton').addEventListener('click', () => chargingAction('start'));
 $('stopButton').addEventListener('click', () => chargingAction('stop'));
+$('remoteStartButton').addEventListener('click', async () => {
+  $('remoteStartButton').disabled = true;
+  $('configurationResult').classList.remove('hidden');
+  $('configurationResult').textContent = 'Abilitazione avvio remoto in corso…';
+  try {
+    const result = await api('/api/enable-remote-start', { method: 'POST' });
+    $('configurationResult').textContent = JSON.stringify(result, null, 2);
+    setMessage(result.ok ? 'Avvio remoto configurato.' : 'Configurazione rifiutata dalla wallbox.', !result.ok);
+  } catch (error) {
+    $('configurationResult').textContent = JSON.stringify({ error: error.message, status: error.status || null, details: error.details || null }, null, 2);
+    setMessage(`Configurazione non riuscita: ${error.message}`, true);
+  } finally {
+    $('remoteStartButton').disabled = false;
+  }
+});
 $('configurationButton').addEventListener('click', async () => {
   $('configurationButton').disabled = true;
   $('configurationResult').classList.remove('hidden');

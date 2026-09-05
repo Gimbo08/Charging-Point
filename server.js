@@ -110,6 +110,33 @@ app.get('/api/ocpp-configuration', requireFirebaseUser, async (_req, res) => {
   }
 });
 
+app.post('/api/enable-remote-start', requireFirebaseUser, async (req, res) => {
+  const point = chargePoints.get(configuredChargePointId);
+  if (!point?.ws || point.ws.readyState !== 1) return res.status(409).json({ error: 'Charge point is not connected' });
+  try {
+    const configuration = await sendOcppCall(point.ws, 'ChangeConfiguration', {
+      key: 'AuthorizeRemoteTxRequests',
+      value: 'true',
+    });
+    const localList = await sendOcppCall(point.ws, 'SendLocalList', {
+      listVersion: 1,
+      localAuthorizationList: [{
+        idTag: ocppIdTag,
+        idTagInfo: { status: 'Accepted' },
+      }],
+      updateType: 'Full',
+    });
+    const verification = await sendOcppCall(point.ws, 'GetConfiguration', {
+      key: ['AuthorizeRemoteTxRequests', 'AuthEnabled', 'LocalAuthListEnabled'],
+    });
+    const event = { configuration, localList, verification, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
+    if (firestoreEnabled) await persistEvent(configuredChargePointId, 'EnableRemoteStart', event);
+    return res.json({ ok: true, ...event });
+  } catch (error) {
+    return res.status(502).json({ error: error.message });
+  }
+});
+
 app.post('/api/manual-mode', requireFirebaseUser, async (req, res) => {
 
   const amps = parseCurrentLimit(req.body?.currentLimitA);
