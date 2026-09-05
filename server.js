@@ -141,6 +141,7 @@ app.post('/api/manual-mode', requireFirebaseUser, async (req, res) => {
 
 app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
   const action = req.body?.action;
+  console.log(JSON.stringify({ event: 'charging_action_requested', action, user: req.user.uid }));
   if (!['start', 'stop'].includes(action)) return res.status(400).json({ error: 'action must be start or stop' });
 
   const point = chargePoints.get(configuredChargePointId);
@@ -159,8 +160,9 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
     }
 
     const event = { action, response, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
+    console.log(JSON.stringify({ event: 'charging_action_response', ...event }));
     if (firestoreEnabled) await persistEvent(configuredChargePointId, `Remote${action === 'start' ? 'Start' : 'Stop'}Transaction`, event);
-    return res.json({ ok: true, ...event });
+    return res.json({ ok: true, ...event, message: action === 'start' ? 'Comando accettato; attesa conferma dello stato di ricarica.' : 'Comando di arresto accettato; attesa conferma dello stato.' });
   } catch (error) {
     return res.status(502).json({ error: error.message });
   }
@@ -170,7 +172,12 @@ app.get('/api/charge-points', requireFirebaseUser, async (_req, res) => {
   if (firestoreEnabled) {
     try {
       const snapshot = await db.collection(chargePointCollection).get();
-      return res.json(snapshot.docs.map((doc) => doc.data()));
+      return res.json(snapshot.docs.map((doc) => {
+        const data = doc.data();
+        const live = chargePoints.get(data.id);
+        if (!live) return { ...data, ocppConnected: false, status: 'Disconnected' };
+        return { ...data, ...Object.fromEntries(Object.entries(live).filter(([key]) => key !== 'ws')) };
+      }));
     } catch (error) {
       console.error('Firestore read failed:', error.message);
     }
@@ -336,6 +343,7 @@ wss.on('connection', (ws) => {
     if (firestoreEnabled) {
       db.collection(chargePointCollection).doc(id).set({
         ocppConnected: false,
+        status: 'Disconnected',
         disconnectedAt: FieldValue.serverTimestamp(),
       }, { merge: true }).catch((error) => console.error('Firestore disconnect write failed:', error.message));
     }
