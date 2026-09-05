@@ -139,6 +139,33 @@ app.post('/api/manual-mode', requireFirebaseUser, async (req, res) => {
   }
 });
 
+app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
+  const action = req.body?.action;
+  if (!['start', 'stop'].includes(action)) return res.status(400).json({ error: 'action must be start or stop' });
+
+  const point = chargePoints.get(configuredChargePointId);
+  if (!point?.ws || point.ws.readyState !== 1) return res.status(409).json({ error: 'Charge point is not connected' });
+
+  try {
+    let response;
+    if (action === 'start') {
+      response = await sendOcppCall(point.ws, 'RemoteStartTransaction', {
+        connectorId: 1,
+        idTag: `charging-point-${req.user.uid}`.slice(0, 20),
+      });
+    } else {
+      if (!point.transactionId) return res.status(409).json({ error: 'No active charging transaction' });
+      response = await sendOcppCall(point.ws, 'RemoteStopTransaction', { transactionId: point.transactionId });
+    }
+
+    const event = { action, response, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
+    if (firestoreEnabled) await persistEvent(configuredChargePointId, `Remote${action === 'start' ? 'Start' : 'Stop'}Transaction`, event);
+    return res.json({ ok: true, ...event });
+  } catch (error) {
+    return res.status(502).json({ error: error.message });
+  }
+});
+
 app.get('/api/charge-points', requireFirebaseUser, async (_req, res) => {
   if (firestoreEnabled) {
     try {

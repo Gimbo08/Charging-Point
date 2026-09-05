@@ -51,6 +51,14 @@ $('loginButton').addEventListener('click', async () => {
 });
 $('logout').addEventListener('click', () => signOut(auth));
 $('amps').addEventListener('input', (event) => { $('ampsValue').textContent = event.target.value; });
+async function chargingAction(action) {
+  $('startButton').disabled = true; $('stopButton').disabled = true; setMessage(action === 'start' ? 'Avvio ricarica…' : 'Arresto ricarica…');
+  try { await api('/api/charging-action', { method: 'POST', body: JSON.stringify({ action }) }); setMessage(action === 'start' ? 'Ricarica attivata.' : 'Ricarica disattivata.'); await refresh(); }
+  catch (error) { setMessage(error.message, true); }
+  finally { $('startButton').disabled = false; $('stopButton').disabled = false; }
+}
+$('startButton').addEventListener('click', () => chargingAction('start'));
+$('stopButton').addEventListener('click', () => chargingAction('stop'));
 $('applyButton').addEventListener('click', async () => {
   $('applyButton').disabled = true; setMessage('Invio comando…');
   try {
