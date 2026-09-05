@@ -79,6 +79,7 @@ function parseCurrentLimit(value) {
 
 function sendOcppCall(ws, action, payload) {
   const uniqueId = `cp-${Date.now()}-${profileSequence++}`;
+  console.log(JSON.stringify({ event: 'ocpp_call_sent', uniqueId, action, payload }));
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       pendingCalls.delete(uniqueId);
@@ -158,17 +159,19 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
     if (action === 'start') {
       response = await sendOcppCall(point.ws, 'RemoteStartTransaction', {
         connectorId: 1,
-        idTag: `charging-point-${req.user.uid}`.slice(0, 20),
+        idTag: 'ChargingPoint',
       });
     } else {
       if (!point.transactionId) return res.status(409).json({ error: 'Nessuna transazione OCPP attiva: la wallbox non ha fornito un transactionId.' });
       response = await sendOcppCall(point.ws, 'RemoteStopTransaction', { transactionId: point.transactionId });
     }
 
-    const event = { action, response, transactionId: point.transactionId || null, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
+    const responseStatus = response?.status || 'Unknown';
+    const event = { action, response, responseStatus, transactionId: point.transactionId || null, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
     console.log(JSON.stringify({ event: 'charging_action_response', ...event }));
     if (firestoreEnabled) await persistEvent(configuredChargePointId, `Remote${action === 'start' ? 'Start' : 'Stop'}Transaction`, event);
-    return res.json({ ok: true, ...event, message: action === 'start' ? 'Comando accettato; attesa conferma dello stato di ricarica.' : 'Comando di arresto accettato; attesa conferma dello stato.' });
+    const accepted = responseStatus === 'Accepted';
+    return res.status(accepted ? 200 : 409).json({ ok: accepted, ...event, message: accepted ? (action === 'start' ? 'Comando accettato; attesa conferma dello stato di ricarica.' : 'Comando di arresto accettato; attesa conferma dello stato.') : `La wallbox ha risposto: ${responseStatus}.` });
   } catch (error) {
     return res.status(502).json({ error: error.message });
   }
@@ -279,8 +282,13 @@ wss.on('connection', (ws) => {
       if (pending) {
         clearTimeout(pending.timeout);
         pendingCalls.delete(uniqueId);
-        if (messageType === 3) pending.resolve(action);
-        else pending.reject(new Error(`${action || 'OCPP error'}: ${payload || ''}`));
+        if (messageType === 3) {
+          console.log(JSON.stringify({ event: 'ocpp_call_result', uniqueId, payload: action }));
+          pending.resolve(action);
+        } else {
+          console.error(JSON.stringify({ event: 'ocpp_call_error', uniqueId, errorCode: action, description: payload }));
+          pending.reject(new Error(`${action || 'OCPP error'}: ${payload || ''}`));
+        }
       }
       return;
     }

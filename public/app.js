@@ -72,7 +72,7 @@ async function chargingAction(action) {
   $('startButton').disabled = true; $('stopButton').disabled = true; setMessage(action === 'start' ? 'Avvio ricarica…' : 'Arresto ricarica…');
   try {
     const result = await api('/api/charging-action', { method: 'POST', body: JSON.stringify({ action }) });
-    setMessage(result.message || 'Comando inviato; attesa conferma dalla wallbox.');
+    setMessage(result.message || `Risposta wallbox: ${result.responseStatus || 'ricevuta'}.`, !result.ok);
     await refresh();
   }
   catch (error) { setMessage(error.message, true); }
