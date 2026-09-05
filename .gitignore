@@ -5,4 +5,5 @@ node_modules/
 *.key
 service-account*.json
 .gcloud/
+.firebase/
 1.png
