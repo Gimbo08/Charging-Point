@@ -87,6 +87,8 @@ $('startButton').addEventListener('click', () => chargingAction('start'));
 $('stopButton').addEventListener('click', () => chargingAction('stop'));
 $('configurationButton').addEventListener('click', async () => {
   $('configurationButton').disabled = true;
+  $('configurationResult').classList.remove('hidden');
+  $('configurationResult').textContent = 'Richiesta in corso…';
   setMessage('Lettura configurazione OCPP…');
   try {
     const result = await api('/api/ocpp-configuration');
