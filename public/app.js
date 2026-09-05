@@ -34,7 +34,12 @@ async function api(path, options = {}) {
   const token = await user.getIdToken();
   const response = await fetch(`${apiBase}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Errore ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(data.error || `Errore ${response.status}`);
+    error.status = response.status;
+    error.details = data;
+    throw error;
+  }
   return data;
 }
 
@@ -89,7 +94,9 @@ $('configurationButton').addEventListener('click', async () => {
     $('configurationResult').classList.remove('hidden');
     setMessage('Configurazione OCPP ricevuta.');
   } catch (error) {
-    setMessage(error.message, true);
+    $('configurationResult').textContent = JSON.stringify({ error: error.message, status: error.status || null, details: error.details || null }, null, 2);
+    $('configurationResult').classList.remove('hidden');
+    setMessage(`Diagnostica non disponibile: ${error.message}`, true);
   } finally {
     $('configurationButton').disabled = false;
   }
