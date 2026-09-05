@@ -30,6 +30,7 @@ const port = Number(process.env.PORT || 8080);
 const configuredChargePointId = process.env.CHARGE_POINT_ID || '';
 const ocppPassword = process.env.OCPP_PASSWORD || '';
 const manualApiToken = process.env.MANUAL_API_TOKEN || '';
+const ocppIdTag = process.env.OCPP_ID_TAG || 'ChargingPoint';
 const chargePoints = new Map();
 const pendingCalls = new Map();
 let profileSequence = 1;
@@ -176,7 +177,7 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
     if (action === 'start') {
       transactionResponse = await sendOcppCall(point.ws, 'RemoteStartTransaction', {
         connectorId: 1,
-        idTag: 'ChargingPoint',
+        idTag: ocppIdTag,
       });
       transactionStatus = transactionResponse?.status || 'Unknown';
     } else if (point.transactionId) {
