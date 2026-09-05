@@ -1,13 +1,29 @@
 const http = require('http');
 const express = require('express');
 const { Firestore, FieldValue } = require('@google-cloud/firestore');
+const admin = require('firebase-admin');
 const { WebSocketServer } = require('ws');
+
+admin.initializeApp();
+const firebaseAuth = admin.auth();
 
 const app = express();
 const db = new Firestore({ ignoreUndefinedProperties: true });
 const firestoreEnabled = process.env.FIRESTORE_DISABLED !== 'true';
 const chargePointCollection = 'chargePoints';
 const eventCollection = 'ocppEvents';
+const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean));
+app.use((request, response, next) => {
+  const origin = request.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    response.setHeader('Access-Control-Allow-Origin', origin);
+    response.setHeader('Vary', 'Origin');
+    response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  }
+  if (request.method === 'OPTIONS') return response.sendStatus(204);
+  return next();
+});
 app.use(express.json());
 
 const port = Number(process.env.PORT || 8080);
@@ -44,8 +60,15 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'charging-point-ocpp', chargePoints: chargePoints.size });
 });
 
-function isManualApiAuthorized(request) {
-  return Boolean(manualApiToken) && request.headers['x-manual-api-token'] === manualApiToken;
+async function requireFirebaseUser(request, response, next) {
+  const header = request.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) return response.status(401).json({ error: 'Authentication required' });
+  try {
+    request.user = await firebaseAuth.verifyIdToken(header.slice(7));
+    return next();
+  } catch {
+    return response.status(401).json({ error: 'Invalid authentication token' });
+  }
 }
 
 function parseCurrentLimit(value) {
@@ -72,8 +95,7 @@ function sendOcppCall(ws, action, payload) {
   });
 }
 
-app.post('/api/manual-mode', async (req, res) => {
-  if (!isManualApiAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
+app.post('/api/manual-mode', requireFirebaseUser, async (req, res) => {
 
   const amps = parseCurrentLimit(req.body?.currentLimitA);
   if (amps === null) return res.status(400).json({ error: 'currentLimitA must be an integer from 6 to 32 A' });
@@ -105,7 +127,7 @@ app.post('/api/manual-mode', async (req, res) => {
 
   try {
     const response = await sendOcppCall(point.ws, 'SetChargingProfile', profile);
-    const mode = { mode: 'manual', currentLimitA: amps, expiresAt: expiresAt?.toISOString() || null, updatedAt: new Date().toISOString() };
+    const mode = { mode: 'manual', currentLimitA: amps, expiresAt: expiresAt?.toISOString() || null, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
     point.manualMode = mode;
     if (firestoreEnabled) {
       await db.collection(chargePointCollection).doc(configuredChargePointId).set({ manualMode: mode }, { merge: true });
@@ -117,7 +139,7 @@ app.post('/api/manual-mode', async (req, res) => {
   }
 });
 
-app.get('/api/charge-points', async (_req, res) => {
+app.get('/api/charge-points', requireFirebaseUser, async (_req, res) => {
   if (firestoreEnabled) {
     try {
       const snapshot = await db.collection(chargePointCollection).get();
