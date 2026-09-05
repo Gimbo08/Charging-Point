@@ -1,0 +1,283 @@
+const http = require('http');
+const express = require('express');
+const { Firestore, FieldValue } = require('@google-cloud/firestore');
+const { WebSocketServer } = require('ws');
+
+const app = express();
+const db = new Firestore({ ignoreUndefinedProperties: true });
+const firestoreEnabled = process.env.FIRESTORE_DISABLED !== 'true';
+const chargePointCollection = 'chargePoints';
+const eventCollection = 'ocppEvents';
+app.use(express.json());
+
+const port = Number(process.env.PORT || 8080);
+const configuredChargePointId = process.env.CHARGE_POINT_ID || '';
+const ocppPassword = process.env.OCPP_PASSWORD || '';
+const manualApiToken = process.env.MANUAL_API_TOKEN || '';
+const chargePoints = new Map();
+const pendingCalls = new Map();
+let profileSequence = 1;
+
+function isAuthorized(request, chargePointId) {
+  if (!configuredChargePointId || !ocppPassword || chargePointId !== configuredChargePointId) {
+    return false;
+  }
+
+  const header = request.headers.authorization || '';
+  if (!header.startsWith('Basic ')) {
+    return false;
+  }
+
+  try {
+    const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
+    const separator = decoded.indexOf(':');
+    if (separator < 0) return false;
+    const username = decoded.slice(0, separator);
+    const password = decoded.slice(separator + 1);
+    return username === configuredChargePointId && password === ocppPassword;
+  } catch {
+    return false;
+  }
+}
+
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, service: 'charging-point-ocpp', chargePoints: chargePoints.size });
+});
+
+function isManualApiAuthorized(request) {
+  return Boolean(manualApiToken) && request.headers['x-manual-api-token'] === manualApiToken;
+}
+
+function parseCurrentLimit(value) {
+  const amps = Number(value);
+  if (!Number.isInteger(amps) || amps < 6 || amps > 32) return null;
+  return amps;
+}
+
+function sendOcppCall(ws, action, payload) {
+  const uniqueId = `cp-${Date.now()}-${profileSequence++}`;
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingCalls.delete(uniqueId);
+      reject(new Error(`Timeout waiting for ${action}`));
+    }, 15000);
+    pendingCalls.set(uniqueId, { resolve, reject, timeout });
+    ws.send(JSON.stringify([2, uniqueId, action, payload]), (error) => {
+      if (error) {
+        clearTimeout(timeout);
+        pendingCalls.delete(uniqueId);
+        reject(error);
+      }
+    });
+  });
+}
+
+app.post('/api/manual-mode', async (req, res) => {
+  if (!isManualApiAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' });
+
+  const amps = parseCurrentLimit(req.body?.currentLimitA);
+  if (amps === null) return res.status(400).json({ error: 'currentLimitA must be an integer from 6 to 32 A' });
+
+  const point = chargePoints.get(configuredChargePointId);
+  if (!point?.ws || point.ws.readyState !== 1) return res.status(409).json({ error: 'Charge point is not connected' });
+
+  const expiresAt = req.body?.expiresAt ? new Date(req.body.expiresAt) : null;
+  if (expiresAt && (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now())) {
+    return res.status(400).json({ error: 'expiresAt must be a future ISO date' });
+  }
+
+  const profile = {
+    connectorId: 1,
+    csChargingProfiles: {
+      chargingProfileId: profileSequence,
+      stackLevel: 0,
+      chargingProfilePurpose: 'TxDefaultProfile',
+      chargingProfileKind: 'Absolute',
+      validFrom: new Date().toISOString(),
+      ...(expiresAt ? { validTo: expiresAt.toISOString() } : {}),
+      chargingSchedule: {
+        chargingRateUnit: 'A',
+        ...(expiresAt ? { duration: Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000)) } : {}),
+        chargingSchedulePeriod: [{ startPeriod: 0, limit: amps }],
+      },
+    },
+  };
+
+  try {
+    const response = await sendOcppCall(point.ws, 'SetChargingProfile', profile);
+    const mode = { mode: 'manual', currentLimitA: amps, expiresAt: expiresAt?.toISOString() || null, updatedAt: new Date().toISOString() };
+    point.manualMode = mode;
+    if (firestoreEnabled) {
+      await db.collection(chargePointCollection).doc(configuredChargePointId).set({ manualMode: mode }, { merge: true });
+      await persistEvent(configuredChargePointId, 'SetChargingProfile', { currentLimitA: amps, expiresAt: mode.expiresAt, response });
+    }
+    return res.json({ ok: true, mode, response });
+  } catch (error) {
+    return res.status(502).json({ error: error.message });
+  }
+});
+
+app.get('/api/charge-points', async (_req, res) => {
+  if (firestoreEnabled) {
+    try {
+      const snapshot = await db.collection(chargePointCollection).get();
+      return res.json(snapshot.docs.map((doc) => doc.data()));
+    } catch (error) {
+      console.error('Firestore read failed:', error.message);
+    }
+  }
+
+  res.json([...chargePoints.values()].map(({ ws, ...point }) => point));
+});
+
+async function persistPoint(point) {
+  if (!firestoreEnabled) return;
+  const { ws, ...data } = point;
+  await db.collection(chargePointCollection).doc(data.id).set({
+    ...data,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function persistEvent(chargePointId, action, payload) {
+  if (!firestoreEnabled) return;
+  await db.collection(eventCollection).add({
+    chargePointId,
+    action,
+    payload,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({
+  noServer: true,
+  handleProtocols: (protocols) => protocols.has('ocpp1.6') ? 'ocpp1.6' : false,
+});
+
+server.on('upgrade', (request, socket, head) => {
+  if (!request.url.startsWith('/ocpp')) {
+    socket.destroy();
+    return;
+  }
+
+  const chargePointId = decodeURIComponent(request.url.split('/').filter(Boolean)[1] || 'unknown');
+  if (!isAuthorized(request, chargePointId)) {
+    socket.write('HTTP/1.1 401 Unauthorized\\r\\nWWW-Authenticate: Basic realm="OCPP"\\r\\nConnection: close\\r\\n\\r\\n');
+    socket.destroy();
+    return;
+  }
+
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    ws.chargePointId = chargePointId;
+    wss.emit('connection', ws, request);
+  });
+});
+
+function sendCallResult(ws, uniqueId, payload) {
+  ws.send(JSON.stringify([3, uniqueId, payload]));
+}
+
+function sendCallError(ws, uniqueId, code, description, details = {}) {
+  ws.send(JSON.stringify([4, uniqueId, code, description, details]));
+}
+
+wss.on('connection', (ws) => {
+  const id = ws.chargePointId;
+  const point = {
+    id,
+    connectedAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString(),
+    status: 'Connected',
+    ws,
+  };
+  chargePoints.set(id, point);
+  persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
+
+  ws.on('message', (raw) => {
+    point.lastSeenAt = new Date().toISOString();
+
+    let message;
+    try {
+      message = JSON.parse(raw.toString());
+    } catch {
+      ws.close(1007, 'Invalid JSON');
+      return;
+    }
+
+    if (!Array.isArray(message) || message.length < 3) {
+      ws.close(1007, 'Invalid OCPP message');
+      return;
+    }
+
+    const [messageType, uniqueId, action, payload] = message;
+    if (messageType === 3 || messageType === 4) {
+      const pending = pendingCalls.get(uniqueId);
+      if (pending) {
+        clearTimeout(pending.timeout);
+        pendingCalls.delete(uniqueId);
+        if (messageType === 3) pending.resolve(action);
+        else pending.reject(new Error(`${action || 'OCPP error'}: ${payload || ''}`));
+      }
+      return;
+    }
+    if (messageType !== 2) {
+      return;
+    }
+
+    persistEvent(id, action, payload).catch((error) => console.error('Firestore event write failed:', error.message));
+
+    switch (action) {
+      case 'BootNotification':
+        point.vendor = payload?.chargePointVendor;
+        point.model = payload?.chargePointModel;
+        point.status = 'Available';
+        sendCallResult(ws, uniqueId, {
+          currentTime: new Date().toISOString(),
+          interval: 300,
+          status: 'Accepted',
+        });
+        persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
+        break;
+      case 'Heartbeat':
+        sendCallResult(ws, uniqueId, { currentTime: new Date().toISOString() });
+        persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
+        break;
+      case 'StatusNotification':
+        point.status = payload?.status || point.status;
+        point.connectorId = payload?.connectorId;
+        sendCallResult(ws, uniqueId, {});
+        persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
+        break;
+      case 'MeterValues':
+        point.meterValues = payload?.meterValue || [];
+        sendCallResult(ws, uniqueId, {});
+        persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
+        break;
+      case 'StartTransaction':
+        point.transactionId = Date.now();
+        point.status = 'Charging';
+        sendCallResult(ws, uniqueId, { transactionId: point.transactionId, idTagInfo: { status: 'Accepted' } });
+        persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
+        break;
+      case 'StopTransaction':
+        point.status = 'Available';
+        point.transactionId = undefined;
+        sendCallResult(ws, uniqueId, { idTagInfo: { status: 'Accepted' } });
+        persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
+        break;
+      default:
+        sendCallError(ws, uniqueId, 'NotImplemented', `Action ${action} is not implemented`);
+    }
+  });
+
+  ws.on('close', () => {
+    if (chargePoints.get(id)?.ws === ws) {
+      chargePoints.delete(id);
+    }
+  });
+});
+
+server.listen(port, '0.0.0.0', () => {
+  console.log(`Charging Point OCPP backend listening on ${port}`);
+});

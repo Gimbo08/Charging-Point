@@ -1,0 +1,18 @@
+{
+  "name": "charging-point-ocpp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloud OCPP backend for Charging Point",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^7.11.0",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
