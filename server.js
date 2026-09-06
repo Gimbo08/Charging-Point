@@ -97,6 +97,20 @@ function sendOcppCall(ws, action, payload) {
   });
 }
 
+app.get('/api/ocpp-events', requireFirebaseUser, async (_req, res) => {
+  if (!firestoreEnabled) return res.json([]);
+  try {
+    const snapshot = await db.collection(eventCollection)
+      .where('chargePointId', '==', configuredChargePointId)
+      .orderBy('createdAt', 'desc')
+      .limit(30)
+      .get();
+    return res.json(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/ocpp-configuration', requireFirebaseUser, async (_req, res) => {
   const point = chargePoints.get(configuredChargePointId);
   if (!point?.ws || point.ws.readyState !== 1) return res.status(409).json({ error: 'Charge point is not connected' });
@@ -376,9 +390,11 @@ wss.on('connection', (ws) => {
         pendingCalls.delete(uniqueId);
         if (messageType === 3) {
           console.log(JSON.stringify({ event: 'ocpp_call_result', uniqueId, payload: action }));
+          persistEvent(id, 'CALLRESULT', { uniqueId, payload: action }).catch((error) => console.error('Firestore result write failed:', error.message));
           pending.resolve(action);
         } else {
           console.error(JSON.stringify({ event: 'ocpp_call_error', uniqueId, errorCode: action, description: payload }));
+          persistEvent(id, 'CALLERROR', { uniqueId, errorCode: action, description: payload }).catch((error) => console.error('Firestore error write failed:', error.message));
           pending.reject(new Error(`${action || 'OCPP error'}: ${payload || ''}`));
         }
       }

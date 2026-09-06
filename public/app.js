@@ -125,6 +125,21 @@ $('remoteStartButton').addEventListener('click', async () => {
     $('remoteStartButton').disabled = false;
   }
 });
+$('eventsButton').addEventListener('click', async () => {
+  $('eventsButton').disabled = true;
+  $('configurationResult').classList.remove('hidden');
+  $('configurationResult').textContent = 'Lettura eventi OCPP…';
+  try {
+    const result = await api('/api/ocpp-events');
+    $('configurationResult').textContent = JSON.stringify(result, null, 2);
+    setMessage('Eventi OCPP ricevuti.');
+  } catch (error) {
+    $('configurationResult').textContent = JSON.stringify({ error: error.message, status: error.status || null, details: error.details || null }, null, 2);
+    setMessage(`Eventi non disponibili: ${error.message}`, true);
+  } finally {
+    $('eventsButton').disabled = false;
+  }
+});
 $('configurationButton').addEventListener('click', async () => {
   $('configurationButton').disabled = true;
   $('configurationResult').classList.remove('hidden');
