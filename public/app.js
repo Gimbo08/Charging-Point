@@ -27,16 +27,28 @@ const themeLabels = {
 function applyTheme(theme) {
   const selected = themes.includes(theme) ? theme : 'fluo-dark';
   document.documentElement.dataset.theme = selected;
-  $('themeToggle').textContent = selected.endsWith('light') ? '☀️' : '🌙';
-  $('themeToggle').setAttribute('aria-label', `Cambia tema — ${themeLabels[selected]}`);
-  $('themeToggle').title = themeLabels[selected];
+  const palette = selected.split('-')[0];
+  const mode = selected.endsWith('light') ? 'light' : 'dark';
+  $('themeToggle').textContent = mode === 'light' ? '☀️' : '🌙';
+  $('themeToggle').setAttribute('aria-label', `Tema ${mode === 'light' ? 'chiaro' : 'scuro'}`);
+  $('themeToggle').title = `Tema ${mode === 'light' ? 'chiaro' : 'scuro'}`;
+  $('paletteToggle').setAttribute('aria-label', `Palette ${palette}`);
+  $('paletteToggle').title = `Palette ${palette}`;
   localStorage.setItem('charging-point-theme', selected);
 }
 
 applyTheme(localStorage.getItem('charging-point-theme') || 'fluo-dark');
+$('paletteToggle').addEventListener('click', () => {
+  const current = document.documentElement.dataset.theme;
+  const mode = current.endsWith('light') ? 'light' : 'dark';
+  const palettes = ['fluo', 'green', 'pastel'];
+  const nextPalette = palettes[(palettes.indexOf(current.split('-')[0]) + 1) % palettes.length];
+  applyTheme(`${nextPalette}-${mode}`);
+});
 $('themeToggle').addEventListener('click', () => {
   const current = document.documentElement.dataset.theme;
-  applyTheme(themes[(themes.indexOf(current) + 1) % themes.length]);
+  const palette = current.split('-')[0];
+  applyTheme(`${palette}-${current.endsWith('light') ? 'dark' : 'light'}`);
 });
 
 function setVisible(id, visible) { $(id).classList.toggle('hidden', !visible); }
