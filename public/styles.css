@@ -36,3 +36,6 @@ html[data-theme="fluo-light"] body{background:#f4fff8!important;color:#101a17!im
 
 /* Power inline current and apply feedback */
 .power-current{font-size:13px;color:var(--muted);font-weight:700;white-space:nowrap}.apply-button{position:relative;min-width:92px}.apply-button.applied{font-size:0}.apply-button.applied::after{content:'✓';font-size:1.25rem;font-weight:900}.apply-button:disabled:not(.applied){font-size:0}.apply-button:disabled:not(.applied)::after{content:'';display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:apply-spin .7s linear infinite;vertical-align:middle}@keyframes apply-spin{to{transform:rotate(360deg)}}
+
+.actionMessage{text-align:center}
+.message{text-align:center}

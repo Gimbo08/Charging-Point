@@ -158,7 +158,7 @@ $('applyButton').addEventListener('click', async () => {
     const local = $('expires').value;
     const expiresAt = local ? italianLocalToIso(local) : undefined;
     await api('/api/manual-mode', { method: 'POST', body: JSON.stringify({ currentLimitA: Number($('amps').value), ...(expiresAt ? { expiresAt } : {}) }) });
-    $('modeBadge').textContent = 'Manuale'; setMessage(''); $('actionMessage').classList.remove('error'); await refresh();
+    $('modeBadge').textContent = 'Manuale'; setMessage('Corrente applicata alla wallbox'); $('actionMessage').classList.remove('error'); await refresh();
     $('applyButton').classList.add('applied');
     setTimeout(() => $('applyButton').classList.remove('applied'), 1800);
   } catch (error) { setMessage(error.message, true); } finally { $('applyButton').disabled = false; }
