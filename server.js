@@ -425,6 +425,9 @@ wss.on('connection', (ws) => {
         if (Number.isFinite(latestEnergyWh) && Number.isFinite(point.sessionStartEnergyWh)) {
           point.sessionEnergyWh = Math.max(0, latestEnergyWh - point.sessionStartEnergyWh);
         }
+        const latestPowerW = Number(point.meterValues.at(-1)?.sampledValue?.find((item) => item.measurand === 'Power.Active.Import')?.value);
+        point.measuredPowerW = Number.isFinite(latestPowerW) ? latestPowerW : null;
+        point.energyFlowing = Number.isFinite(latestPowerW) && latestPowerW > 10;
         sendCallResult(ws, uniqueId, {});
         persistPoint(point).catch((error) => console.error('Firestore point write failed:', error.message));
         break;

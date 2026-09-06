@@ -56,7 +56,12 @@ async function refresh() {
     const recentlySeen = Number.isFinite(lastSeenMs) && (Date.now() - lastSeenMs) <= connectionTimeoutMs;
     const connected = point.ocppConnected === true && recentlySeen;
     setCommandAvailability(connected);
-    $('status').textContent = point.status || (connected ? 'Connessa' : 'Non connessa');
+    const reportedStatus = point.status || (connected ? 'Connessa' : 'Non connessa');
+    const actualPower = Number(point.measuredPowerW);
+    const effectiveStatus = reportedStatus === 'Charging' && (!Number.isFinite(actualPower) || actualPower <= 10)
+      ? 'In attesa energia'
+      : reportedStatus;
+    $('status').textContent = effectiveStatus;
     $('model').textContent = `${point.vendor || ''} ${point.model || ''}`;
     $('lastSeen').textContent = point.lastSeenAt ? `Ultimo dato: ${new Date(point.lastSeenAt).toLocaleString('it-IT')}` : '—';
     if (!recentlySeen) setMessage('Connessione OCPP non confermata da oltre 120 secondi.', true);
