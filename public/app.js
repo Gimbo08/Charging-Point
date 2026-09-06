@@ -15,6 +15,19 @@ const apiBase = window.CHARGING_POINT_API_BASE || 'https://charging-point-ocpp-4
 const connectionTimeoutMs = 120000;
 const $ = (id) => document.getElementById(id);
 
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const light = theme === 'light';
+  $('themeToggle').textContent = light ? '🌙' : '☀️';
+  $('themeToggle').setAttribute('aria-label', light ? 'Attiva tema scuro' : 'Attiva tema chiaro');
+  localStorage.setItem('charging-point-theme', theme);
+}
+
+applyTheme(localStorage.getItem('charging-point-theme') || 'dark');
+$('themeToggle').addEventListener('click', () => {
+  applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+});
+
 function setVisible(id, visible) { $(id).classList.toggle('hidden', !visible); }
 function setMessage(text, error = false) { $('actionMessage').textContent = text; $('actionMessage').className = error ? 'message error' : 'message'; }
 function setCommandAvailability(connected) {
