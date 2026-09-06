@@ -216,7 +216,6 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
     let transactionStatus = null;
     if (action === 'start') {
       transactionResponse = await sendOcppCall(point.ws, 'RemoteStartTransaction', {
-        connectorId: 1,
         idTag: ocppIdTag,
       });
       transactionStatus = transactionResponse?.status || 'Unknown';
