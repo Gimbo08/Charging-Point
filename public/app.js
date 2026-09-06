@@ -15,17 +15,28 @@ const apiBase = window.CHARGING_POINT_API_BASE || 'https://charging-point-ocpp-4
 const connectionTimeoutMs = 120000;
 const $ = (id) => document.getElementById(id);
 
+const themes = ['fluo-dark', 'fluo-light', 'green-dark', 'green-light', 'pastel-dark', 'pastel-light'];
+const themeLabels = {
+  'fluo-dark': 'Fluo scuro',
+  'fluo-light': 'Fluo chiaro',
+  'green-dark': 'Green scuro',
+  'green-light': 'Green chiaro',
+  'pastel-dark': 'Pastello scuro',
+  'pastel-light': 'Pastello chiaro',
+};
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  const light = theme === 'light';
-  $('themeToggle').textContent = light ? '🌙' : '☀️';
-  $('themeToggle').setAttribute('aria-label', light ? 'Attiva tema scuro' : 'Attiva tema chiaro');
-  localStorage.setItem('charging-point-theme', theme);
+  const selected = themes.includes(theme) ? theme : 'fluo-dark';
+  document.documentElement.dataset.theme = selected;
+  $('themeToggle').textContent = selected.endsWith('light') ? '☀️' : '🌙';
+  $('themeToggle').setAttribute('aria-label', `Cambia tema — ${themeLabels[selected]}`);
+  $('themeToggle').title = themeLabels[selected];
+  localStorage.setItem('charging-point-theme', selected);
 }
 
-applyTheme(localStorage.getItem('charging-point-theme') || 'dark');
+applyTheme(localStorage.getItem('charging-point-theme') || 'fluo-dark');
 $('themeToggle').addEventListener('click', () => {
-  applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+  const current = document.documentElement.dataset.theme;
+  applyTheme(themes[(themes.indexOf(current) + 1) % themes.length]);
 });
 
 function setVisible(id, visible) { $(id).classList.toggle('hidden', !visible); }
