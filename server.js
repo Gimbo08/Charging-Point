@@ -229,7 +229,13 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
   if (!point?.ws || point.ws.readyState !== 1) return res.status(409).json({ error: 'Charge point is not connected' });
 
   try {
-    const limit = action === 'start' ? parseCurrentLimit(point.manualMode?.currentLimitA || 6) : 0;
+    const requestedLimit = action === 'start' ? req.body?.currentLimitA : 0;
+    const limit = action === 'start' ? parseCurrentLimit(requestedLimit ?? point.manualMode?.currentLimitA ?? 6) : 0;
+    if (action === 'start' && limit === null) return res.status(400).json({ error: 'currentLimitA must be an integer from 6 to 32 A' });
+    const requestedExpiresAt = action === 'start' && req.body?.expiresAt ? new Date(req.body.expiresAt) : null;
+    if (requestedExpiresAt && (Number.isNaN(requestedExpiresAt.getTime()) || requestedExpiresAt.getTime() <= Date.now())) {
+      return res.status(400).json({ error: 'expiresAt must be a future ISO date' });
+    }
     const activeTransactionId = Number.isFinite(Number(point.transactionId)) ? Number(point.transactionId) : null;
     const profile = {
       connectorId: 1,
@@ -240,7 +246,9 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
         ...(activeTransactionId ? { transactionId: activeTransactionId } : {}),
         chargingProfileKind: 'Absolute',
         validFrom: new Date().toISOString(),
+        ...(requestedExpiresAt ? { validTo: requestedExpiresAt.toISOString() } : {}),
         chargingSchedule: {
+          ...(requestedExpiresAt ? { duration: Math.max(1, Math.floor((requestedExpiresAt.getTime() - Date.now()) / 1000)) } : {}),
           chargingRateUnit: 'A',
           chargingSchedulePeriod: [{ startPeriod: 0, limit }],
         },
@@ -266,6 +274,11 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
     }
 
     const accepted = action === 'start' ? transactionStatus === 'Accepted' : (!transactionStatus || transactionStatus === 'Accepted');
+    const mode = action === 'start' ? { mode: 'manual', currentLimitA: limit, expiresAt: requestedExpiresAt?.toISOString() || null, updatedAt: new Date().toISOString(), updatedBy: req.user.uid } : null;
+    if (mode) {
+      point.manualMode = mode;
+      if (firestoreEnabled) await db.collection(chargePointCollection).doc(configuredChargePointId).set({ manualMode: mode }, { merge: true });
+    }
     const event = {
       action,
       requestedLimitA: limit,
@@ -274,6 +287,7 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
       transactionResponse,
       transactionStatus,
       transactionId: point.transactionId || null,
+      expiresAt: requestedExpiresAt?.toISOString() || null,
       updatedAt: new Date().toISOString(),
       updatedBy: req.user.uid,
     };

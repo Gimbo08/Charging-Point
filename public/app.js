@@ -96,7 +96,10 @@ $('amps').addEventListener('input', (event) => { $('ampsValue').textContent = ev
 async function chargingAction(action) {
   $('startButton').disabled = true; $('stopButton').disabled = true; setMessage(action === 'start' ? 'Avvio ricarica…' : 'Arresto ricarica…');
   try {
-    const result = await api('/api/charging-action', { method: 'POST', body: JSON.stringify({ action }) });
+    const local = $('expires').value;
+    const expiresAt = local ? new Date(local).toISOString() : undefined;
+    const body = { action, ...(action === 'start' ? { currentLimitA: Number($('amps').value), ...(expiresAt ? { expiresAt } : {}) } : {}) };
+    const result = await api('/api/charging-action', { method: 'POST', body: JSON.stringify(body) });
     setMessage(result.message || `Risposta wallbox: ${result.responseStatus || 'ricevuta'}.`, !result.ok);
     await refresh();
   }
