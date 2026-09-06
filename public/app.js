@@ -80,6 +80,29 @@ function formatCurrent(values) {
   return value !== undefined && value !== null ? `(${Number(value).toFixed(1)} A)` : '(—)';
 }
 function formatSessionEnergy(energyWh) { return Number.isFinite(Number(energyWh)) ? `${(Number(energyWh) / 1000).toFixed(2)} kWh` : '0.00 kWh'; }
+function formatItalianDate(isoValue) {
+  if (!isoValue) return '';
+  return new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', dateStyle: 'short', timeStyle: 'short' }).format(new Date(isoValue));
+}
+function toItalianLocalInput(isoValue) {
+  if (!isoValue) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(isoValue));
+  const values = Object.fromEntries(parts.filter(({ type }) => type !== 'literal').map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
+function updateScheduleSummary(expiresAt) {
+  const active = expiresAt && new Date(expiresAt).getTime() > Date.now();
+  $('scheduledSummary').classList.toggle('hidden', !active);
+  $('finishConfirmation').classList.toggle('hidden', !active);
+  $('clearExpires').classList.toggle('hidden', !active);
+  if (!active) return;
+  const formatted = formatItalianDate(expiresAt);
+  const remaining = Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / 60000));
+  const hours = Math.floor(remaining / 60); const minutes = remaining % 60;
+  const countdown = hours ? `${hours} h ${minutes} min` : `${minutes} min`;
+  $('scheduledSummary').textContent = `Fine prevista: ${formatted}`;
+  $('finishConfirmation').textContent = `✓ Fine ricarica impostata · tra ${countdown}`;
+}
 function italianLocalToIso(localValue) {
   if (!localValue) return undefined;
   const [datePart, timePart] = localValue.split('T');
@@ -133,6 +156,9 @@ async function refresh() {
     $('current').textContent = formatCurrent(point.meterValues?.at(-1)?.sampledValue);
     $('sessionEnergy').textContent = formatSessionEnergy(point.sessionEnergyWh);
     if (point.manualMode?.currentLimitA) { $('amps').value = point.manualMode.currentLimitA; $('ampsValue').textContent = point.manualMode.currentLimitA; }
+    const expiresAt = point.manualMode?.expiresAt || null;
+    if (expiresAt) $('expires').value = toItalianLocalInput(expiresAt);
+    updateScheduleSummary(expiresAt);
   } catch (error) { setMessage(error.message, true); }
 }
 
@@ -157,6 +183,13 @@ async function chargingAction(action) {
 }
 $('startButton').addEventListener('click', () => chargingAction('start'));
 $('stopButton').addEventListener('click', () => chargingAction('stop'));
+$('clearExpires').addEventListener('click', async () => {
+  $('clearExpires').disabled = true;
+  try {
+    await api('/api/manual-mode', { method: 'POST', body: JSON.stringify({ currentLimitA: Number($('amps').value) }) });
+    $('expires').value = ''; updateScheduleSummary(null); setMessage('Fine ricarica annullata.');
+  } catch (error) { setMessage(error.message, true); } finally { $('clearExpires').disabled = false; }
+});
 $('applyButton').addEventListener('click', async () => {
   $('applyButton').disabled = true; setMessage('Invio comando…');
   try {

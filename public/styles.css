@@ -39,3 +39,6 @@ html[data-theme="fluo-light"] body{background:#f4fff8!important;color:#101a17!im
 
 .actionMessage{text-align:center}
 .message{text-align:center}
+
+/* Charging schedule confirmation */
+.finish-row{display:flex;align-items:center;justify-content:space-between;margin-top:4px}.finish-row label{margin:0!important}.clear-finish{border:0!important;background:transparent!important;color:var(--danger)!important;font-size:1.35rem;padding:2px 7px;line-height:1}.finish-confirmation{margin-top:8px;text-align:center;color:var(--accent);font-size:12px;font-weight:800}.scheduled-summary{grid-column:1/-1;border-top:1px solid var(--border);padding-top:12px;color:var(--accent);font-size:12px;font-weight:800}.energy-metrics{align-items:start}

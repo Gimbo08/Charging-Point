@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1220">
   <title>Charging Point</title>
   <link rel="manifest" href="/manifest.json"><link rel="icon" href="/icons/charging-point-lightning.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=17">
+  <link rel="stylesheet" href="/styles.css?v=18">
 </head>
 <body>
   <main class="shell">
@@ -20,18 +20,18 @@
         </div>
         <div class="energy-metrics">
           <div class="energy-metric"><span class="metric-label">POTENZA IN EROGAZIONE</span><div id="powerDisplay" class="power-display"><span id="chargingAnimation" class="charging-animation" aria-hidden="true">⚡</span><strong id="power">—</strong><span id="current" class="power-current">(—)</span></div></div>
-          <div class="energy-metric session-metric"><span class="metric-label">SESSIONE ATTUALE</span><strong id="sessionEnergy">—</strong><span class="metric-detail">Energia immessa</span></div>
+          <div class="energy-metric session-metric"><span class="metric-label">SESSIONE ATTUALE</span><strong id="sessionEnergy">—</strong><span class="metric-detail">Energia immessa</span></div><div id="scheduledSummary" class="scheduled-summary hidden"></div>
         </div>
       </section>
       <section class="control-card card">
         <div class="control-head"><div><p class="label">MODALITÀ DI CONTROLLO</p><h2>Ricarica</h2></div><div class="mode-switch" role="tablist" aria-label="Modalità di ricarica"><button class="mode-option active" type="button" aria-selected="true">Bypass manuale</button><button class="mode-option solar-option" type="button" aria-selected="false" disabled>Solare intelligente</button></div></div>
         <div class="current-row"><div><span class="metric-label">CORRENTE IMPOSTATA</span><div class="current-value"><span id="ampsValue">6</span><small>A</small></div></div><button id="applyButton" class="apply-button" disabled>Applica</button></div>
         <div class="slider-wrap"><input id="amps" type="range" min="6" max="32" step="1" value="6"><div class="range-labels"><span>6 A</span><span>32 A</span></div></div>
-        <label for="expires">Fine ricarica</label><input id="expires" type="datetime-local">
+        <div class="finish-row"><label for="expires">Fine ricarica</label><button id="clearExpires" class="clear-finish hidden" type="button" aria-label="Annulla fine ricarica">×</button></div><input id="expires" type="datetime-local"><div id="finishConfirmation" class="finish-confirmation hidden"></div>
         <div class="button-row"><button id="startButton" class="success" disabled>Attiva ricarica</button><button id="stopButton" class="danger" disabled>Disattiva ricarica</button></div><p id="actionMessage" class="message"></p><pre id="configurationResult" class="configuration-result hidden"></pre>
       </section>
     </section>
   </main>
-  <script type="module" src="/app.js?v=17"></script>
+  <script type="module" src="/app.js?v=18"></script>
 </body>
 </html>
