@@ -31,6 +31,7 @@ const configuredChargePointId = process.env.CHARGE_POINT_ID || '';
 const ocppPassword = process.env.OCPP_PASSWORD || '';
 const manualApiToken = process.env.MANUAL_API_TOKEN || '';
 const ocppIdTag = process.env.OCPP_ID_TAG || 'ChargingPoint';
+const authDisabledIdTag = process.env.AUTH_DISABLED_ID_TAG || 'NoAuthorization';
 const chargePoints = new Map();
 const pendingCalls = new Map();
 let profileSequence = 1;
@@ -410,7 +411,7 @@ wss.on('connection', (ws) => {
       case 'Authorize':
         sendCallResult(ws, uniqueId, {
           idTagInfo: {
-            status: payload?.idTag === ocppIdTag ? 'Accepted' : 'Invalid',
+            status: [ocppIdTag, authDisabledIdTag].includes(payload?.idTag) ? 'Accepted' : 'Invalid',
           },
         });
         break;
@@ -437,6 +438,9 @@ wss.on('connection', (ws) => {
         break;
       case 'MeterValues':
         point.meterValues = payload?.meterValue || [];
+        if (payload?.transactionId !== undefined && payload?.transactionId !== null) {
+          point.transactionId = Number(payload.transactionId);
+        }
         const latestEnergyWh = Number(point.meterValues.at(-1)?.sampledValue?.find((item) => item.measurand === 'Energy.Active.Import.Register')?.value);
         if (Number.isFinite(latestEnergyWh) && Number.isFinite(point.sessionStartEnergyWh)) {
           point.sessionEnergyWh = Math.max(0, latestEnergyWh - point.sessionStartEnergyWh);
