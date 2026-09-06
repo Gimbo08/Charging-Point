@@ -370,6 +370,13 @@ wss.on('connection', (ws) => {
     persistEvent(id, action, payload).catch((error) => console.error('Firestore event write failed:', error.message));
 
     switch (action) {
+      case 'Authorize':
+        sendCallResult(ws, uniqueId, {
+          idTagInfo: {
+            status: payload?.idTag === ocppIdTag ? 'Accepted' : 'Invalid',
+          },
+        });
+        break;
       case 'BootNotification':
         point.vendor = payload?.chargePointVendor;
         point.model = payload?.chargePointModel;
