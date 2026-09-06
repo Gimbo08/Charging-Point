@@ -40,6 +40,17 @@ function setCommandAvailability(connected) {
 function formatPower(values) { const value = values?.find((item) => item.measurand === 'Power.Active.Import')?.value; return value ? `${Number(value).toFixed(0)} W` : '—'; }
 function formatCurrent(values) { const value = values?.find((item) => item.measurand === 'Current.Offered')?.value; return value ? `${value} A` : '—'; }
 function formatSessionEnergy(energyWh) { return Number.isFinite(Number(energyWh)) ? `${(Number(energyWh) / 1000).toFixed(2)} kWh` : '0.00 kWh'; }
+function italianLocalToIso(localValue) {
+  if (!localValue) return undefined;
+  const [datePart, timePart] = localValue.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute] = timePart.split(':').map(Number);
+  const intendedUtc = Date.UTC(year, month - 1, day, hour, minute);
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const parts = Object.fromEntries(formatter.formatToParts(new Date(intendedUtc)).filter(({ type }) => type !== 'literal').map(({ type, value }) => [type, Number(value)]));
+  const displayedAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute);
+  return new Date(intendedUtc - (displayedAsUtc - intendedUtc)).toISOString();
+}
 
 async function api(path, options = {}) {
   const user = auth.currentUser;
@@ -95,7 +106,7 @@ async function chargingAction(action) {
   $('startButton').disabled = true; $('stopButton').disabled = true; setMessage(action === 'start' ? 'Avvio ricarica…' : 'Arresto ricarica…');
   try {
     const local = $('expires').value;
-    const expiresAt = local ? new Date(local).toISOString() : undefined;
+    const expiresAt = local ? italianLocalToIso(local) : undefined;
     const body = { action, ...(action === 'start' ? { currentLimitA: Number($('amps').value), ...(expiresAt ? { expiresAt } : {}) } : {}) };
     const result = await api('/api/charging-action', { method: 'POST', body: JSON.stringify(body) });
     setMessage(result.message || `Risposta wallbox: ${result.responseStatus || 'ricevuta'}.`, !result.ok);
@@ -110,7 +121,7 @@ $('applyButton').addEventListener('click', async () => {
   $('applyButton').disabled = true; setMessage('Invio comando…');
   try {
     const local = $('expires').value;
-    const expiresAt = local ? new Date(local).toISOString() : undefined;
+    const expiresAt = local ? italianLocalToIso(local) : undefined;
     await api('/api/manual-mode', { method: 'POST', body: JSON.stringify({ currentLimitA: Number($('amps').value), ...(expiresAt ? { expiresAt } : {}) }) });
     $('modeBadge').textContent = 'Manuale'; setMessage('Corrente applicata alla wallbox.'); await refresh();
   } catch (error) { setMessage(error.message, true); } finally { $('applyButton').disabled = false; }
