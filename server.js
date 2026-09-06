@@ -187,12 +187,14 @@ app.post('/api/manual-mode', requireFirebaseUser, async (req, res) => {
     return res.status(400).json({ error: 'expiresAt must be a future ISO date' });
   }
 
+  const activeTransactionId = Number.isFinite(Number(point.transactionId)) ? Number(point.transactionId) : null;
   const profile = {
     connectorId: 1,
     csChargingProfiles: {
-      chargingProfileId: profileSequence,
-      stackLevel: 0,
-      chargingProfilePurpose: 'TxDefaultProfile',
+      chargingProfileId: profileSequence++,
+      stackLevel: 10,
+      chargingProfilePurpose: activeTransactionId ? 'TxProfile' : 'TxDefaultProfile',
+      ...(activeTransactionId ? { transactionId: activeTransactionId } : {}),
       chargingProfileKind: 'Absolute',
       validFrom: new Date().toISOString(),
       ...(expiresAt ? { validTo: expiresAt.toISOString() } : {}),
@@ -228,12 +230,14 @@ app.post('/api/charging-action', requireFirebaseUser, async (req, res) => {
 
   try {
     const limit = action === 'start' ? parseCurrentLimit(point.manualMode?.currentLimitA || 6) : 0;
+    const activeTransactionId = Number.isFinite(Number(point.transactionId)) ? Number(point.transactionId) : null;
     const profile = {
       connectorId: 1,
       csChargingProfiles: {
         chargingProfileId: profileSequence++,
         stackLevel: 10,
-        chargingProfilePurpose: 'TxDefaultProfile',
+        chargingProfilePurpose: activeTransactionId ? 'TxProfile' : 'TxDefaultProfile',
+        ...(activeTransactionId ? { transactionId: activeTransactionId } : {}),
         chargingProfileKind: 'Absolute',
         validFrom: new Date().toISOString(),
         chargingSchedule: {
