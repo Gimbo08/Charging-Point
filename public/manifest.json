@@ -3,6 +3,14 @@
   "short_name": "Charging Point",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b1220",
-  "theme_color": "#0b1220"
+  "background_color": "#35a9e8",
+  "theme_color": "#35a9e8",
+  "icons": [
+    {
+      "src": "/icons/charging-point-lightning.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
