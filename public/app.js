@@ -16,6 +16,14 @@ const connectionTimeoutMs = 120000;
 const $ = (id) => document.getElementById(id);
 
 const themes = ['fluo-dark', 'fluo-light', 'green-dark', 'green-light', 'pastel-dark', 'pastel-light'];
+const themeStyles = {
+  'fluo-dark': {'--bg':'#10151c','--surface':'#151d26','--surface-2':'#1b2630','--text':'#f5fff8','--muted':'#a8bac4','--border':'#344553','--accent':'#adff2f','--accent-2':'#37f6ff'},
+  'fluo-light': {'--bg':'#edf9f3','--surface':'#ffffff','--surface-2':'#f1fff7','--text':'#15251e','--muted':'#4c7562','--border':'#70d69a','--accent':'#009b62','--accent-2':'#087fa0'},
+  'green-dark': {'--bg':'#09251d','--surface':'#12382c','--surface-2':'#174b3a','--text':'#effff5','--muted':'#a7cbb6','--border':'#4c9c76','--accent':'#8ee6ae','--accent-2':'#d7f59f'},
+  'green-light': {'--bg':'#eaf4ed','--surface':'#f9fffa','--surface-2':'#e1f2e6','--text':'#17372d','--muted':'#638273','--border':'#a7ccb5','--accent':'#19734e','--accent-2':'#2e9b68'},
+  'pastel-dark': {'--bg':'#29243a','--surface':'#3b334e','--surface-2':'#4a3d61','--text':'#fff8ff','--muted':'#d0c4dd','--border':'#bba7d1','--accent':'#f2b8c2','--accent-2':'#c9b3f0'},
+  'pastel-light': {'--bg':'#f4eff8','--surface':'#fffaff','--surface-2':'#eee5f7','--text':'#332d4b','--muted':'#8b819b','--border':'#d6c7e5','--accent':'#8064a8','--accent-2':'#c56f91'},
+};
 const themeLabels = {
   'fluo-dark': 'Fluo scuro',
   'fluo-light': 'Fluo chiaro',
@@ -27,6 +35,10 @@ const themeLabels = {
 function applyTheme(theme) {
   const selected = themes.includes(theme) ? theme : 'fluo-dark';
   document.documentElement.dataset.theme = selected;
+  Object.entries(themeStyles[selected]).forEach(([property, value]) => document.documentElement.style.setProperty(property, value));
+  document.documentElement.style.setProperty('--button', themeStyles[selected]['--accent']);
+  document.documentElement.style.setProperty('--button-text', selected.endsWith('light') ? '#ffffff' : '#111');
+  document.documentElement.style.setProperty('--danger', selected.endsWith('light') ? '#c83e55' : '#ff7180');
   const palette = selected.split('-')[0];
   const mode = selected.endsWith('light') ? 'light' : 'dark';
   $('themeToggle').textContent = mode === 'light' ? '☀️' : '🌙';
