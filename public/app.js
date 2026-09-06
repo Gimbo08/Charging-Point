@@ -77,8 +77,6 @@ async function refresh() {
       : reportedStatus;
     $('status').textContent = effectiveStatus;
     $('powerDisplay').classList.toggle('charging-active', isCharging);
-    $('model').textContent = `${point.vendor || ''} ${point.model || ''}`;
-    $('lastSeen').textContent = point.lastSeenAt ? `Ultimo dato: ${new Date(point.lastSeenAt).toLocaleString('it-IT')}` : '—';
     if (!recentlySeen) setMessage('Connessione OCPP non confermata da oltre 120 secondi.', true);
     $('power').textContent = formatPower(point.meterValues?.at(-1)?.sampledValue);
     $('current').textContent = formatCurrent(point.meterValues?.at(-1)?.sampledValue);
