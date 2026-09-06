@@ -27,3 +27,6 @@ html[data-theme="fluo-light"] body{background:#edf9f3!important;color:#15251e!im
 html[data-theme="green-light"] body{background:#eaf4ed!important;color:#17372d!important}
 html[data-theme="pastel-light"] body{background:#f4eff8!important;color:#332d4b!important}
 html[data-theme="fluo-light"] .energy-card,html[data-theme="fluo-light"] .control-card,html[data-theme="green-light"] .energy-card,html[data-theme="green-light"] .control-card,html[data-theme="pastel-light"] .energy-card,html[data-theme="pastel-light"] .control-card{color:inherit}
+
+/* Final theme canvas synchronization */
+html[data-theme] body{background:var(--bg)!important;color:var(--text)!important}
