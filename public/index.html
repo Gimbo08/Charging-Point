@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1220">
   <title>Charging Point</title>
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/styles.css?v=14">
+  <link rel="stylesheet" href="/styles.css?v=15">
 </head>
 <body>
   <main class="shell">
@@ -19,7 +19,7 @@
           <span id="modeBadge" class="badge offline">OCPP non connesso</span>
         </div>
         <div class="energy-metrics">
-          <div class="energy-metric"><span class="metric-label">POTENZA IN EROGAZIONE</span><div id="powerDisplay" class="power-display"><span id="chargingAnimation" class="charging-animation" aria-hidden="true">⚡</span><strong id="power">—</strong></div><span id="current" class="metric-detail">—</span></div>
+          <div class="energy-metric"><span class="metric-label">POTENZA IN EROGAZIONE</span><div id="powerDisplay" class="power-display"><span id="chargingAnimation" class="charging-animation" aria-hidden="true">⚡</span><strong id="power">—</strong><span id="current" class="power-current">(—)</span></div></div>
           <div class="energy-metric session-metric"><span class="metric-label">SESSIONE ATTUALE</span><strong id="sessionEnergy">—</strong><span class="metric-detail">Energia immessa</span></div>
         </div>
       </section>
@@ -32,6 +32,6 @@
       </section>
     </section>
   </main>
-  <script type="module" src="/app.js?v=14"></script>
+  <script type="module" src="/app.js?v=15"></script>
 </body>
 </html>

@@ -73,7 +73,7 @@ function setCommandAvailability(connected) {
   $('modeBadge').classList.toggle('offline', !connected);
 }
 function formatPower(values) { const value = values?.find((item) => item.measurand === 'Power.Active.Import')?.value; return value ? `${Number(value).toFixed(0)} W` : '—'; }
-function formatCurrent(values) { const value = values?.find((item) => item.measurand === 'Current.Offered')?.value; return value ? `${value} A` : '—'; }
+function formatCurrent(values) { const value = values?.find((item) => item.measurand === 'Current.Offered')?.value; return value ? `(${value} A)` : '(—)'; }
 function formatSessionEnergy(energyWh) { return Number.isFinite(Number(energyWh)) ? `${(Number(energyWh) / 1000).toFixed(2)} kWh` : '0.00 kWh'; }
 function italianLocalToIso(localValue) {
   if (!localValue) return undefined;
@@ -158,7 +158,9 @@ $('applyButton').addEventListener('click', async () => {
     const local = $('expires').value;
     const expiresAt = local ? italianLocalToIso(local) : undefined;
     await api('/api/manual-mode', { method: 'POST', body: JSON.stringify({ currentLimitA: Number($('amps').value), ...(expiresAt ? { expiresAt } : {}) }) });
-    $('modeBadge').textContent = 'Manuale'; setMessage('Corrente applicata alla wallbox.'); await refresh();
+    $('modeBadge').textContent = 'Manuale'; setMessage(''); $('actionMessage').classList.remove('error'); await refresh();
+    $('applyButton').classList.add('applied');
+    setTimeout(() => $('applyButton').classList.remove('applied'), 1800);
   } catch (error) { setMessage(error.message, true); } finally { $('applyButton').disabled = false; }
 });
 onAuthStateChanged(auth, (user) => { setVisible('login', !user); setVisible('dashboard', Boolean(user)); setVisible('logout', Boolean(user)); if (user) { refresh(); setInterval(refresh, 15000); } });
