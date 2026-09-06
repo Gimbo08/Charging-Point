@@ -73,7 +73,12 @@ function setCommandAvailability(connected) {
   $('modeBadge').classList.toggle('offline', !connected);
 }
 function formatPower(values) { const value = values?.find((item) => item.measurand === 'Power.Active.Import')?.value; return value ? `${Number(value).toFixed(0)} W` : '—'; }
-function formatCurrent(values) { const value = values?.find((item) => item.measurand === 'Current.Offered')?.value; return value ? `(${value} A)` : '(—)'; }
+function formatCurrent(values) {
+  const actual = values?.find((item) => item.measurand === 'Current.Import')?.value;
+  const offered = values?.find((item) => item.measurand === 'Current.Offered')?.value;
+  const value = actual ?? offered;
+  return value !== undefined && value !== null ? `(${Number(value).toFixed(1)} A)` : '(—)';
+}
 function formatSessionEnergy(energyWh) { return Number.isFinite(Number(energyWh)) ? `${(Number(energyWh) / 1000).toFixed(2)} kWh` : '0.00 kWh'; }
 function italianLocalToIso(localValue) {
   if (!localValue) return undefined;
