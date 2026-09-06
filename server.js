@@ -137,6 +137,28 @@ app.post('/api/enable-remote-start', requireFirebaseUser, async (req, res) => {
   }
 });
 
+app.post('/api/recovery-action', requireFirebaseUser, async (req, res) => {
+  const action = req.body?.action;
+  const point = chargePoints.get(configuredChargePointId);
+  if (!point?.ws || point.ws.readyState !== 1) return res.status(409).json({ error: 'Charge point is not connected' });
+  const commands = {
+    clearProfiles: ['ClearChargingProfile', {}],
+    operative: ['ChangeAvailability', { connectorId: 1, type: 'Operative' }],
+    resetSoft: ['Reset', { type: 'Soft' }],
+    unlock: ['UnlockConnector', { connectorId: 1 }],
+  };
+  if (!commands[action]) return res.status(400).json({ error: 'Unknown recovery action' });
+  try {
+    const [command, payload] = commands[action];
+    const response = await sendOcppCall(point.ws, command, payload);
+    const event = { action, command, response, updatedAt: new Date().toISOString(), updatedBy: req.user.uid };
+    if (firestoreEnabled) await persistEvent(configuredChargePointId, 'RecoveryAction', event);
+    return res.json({ ok: true, ...event });
+  } catch (error) {
+    return res.status(502).json({ error: error.message });
+  }
+});
+
 app.post('/api/manual-mode', requireFirebaseUser, async (req, res) => {
 
   const amps = parseCurrentLimit(req.body?.currentLimitA);

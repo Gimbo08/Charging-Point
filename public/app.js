@@ -85,6 +85,26 @@ async function chargingAction(action) {
 }
 $('startButton').addEventListener('click', () => chargingAction('start'));
 $('stopButton').addEventListener('click', () => chargingAction('stop'));
+document.querySelectorAll('.recoveryButton').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const action = button.dataset.recovery;
+    button.disabled = true;
+    $('configurationResult').classList.remove('hidden');
+    $('configurationResult').textContent = `Esecuzione ${action}…`;
+    setMessage('Comando di recupero in corso…');
+    try {
+      const result = await api('/api/recovery-action', { method: 'POST', body: JSON.stringify({ action }) });
+      $('configurationResult').textContent = JSON.stringify(result, null, 2);
+      setMessage('Comando di recupero eseguito.');
+      await refresh();
+    } catch (error) {
+      $('configurationResult').textContent = JSON.stringify({ error: error.message, status: error.status || null, details: error.details || null }, null, 2);
+      setMessage(`Recupero non riuscito: ${error.message}`, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+});
 $('remoteStartButton').addEventListener('click', async () => {
   $('remoteStartButton').disabled = true;
   $('configurationResult').classList.remove('hidden');
